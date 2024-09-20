@@ -1,46 +1,59 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 with lib;
 let
   cfg = config.services.minecraft-servers;
 
-  mkOpt = type: default:
-    mkOption { inherit type default; };
+  mkOpt = type: default: mkOption { inherit type default; };
 
-  mkOpt' = type: default: description:
+  mkOpt' =
+    type: default: description:
     mkOption { inherit type default description; };
 
-  mkBoolOpt = default: mkOption {
-    inherit default;
-    type = types.bool;
-    example = true;
-  };
+  mkBoolOpt =
+    default:
+    mkOption {
+      inherit default;
+      type = types.bool;
+      example = true;
+    };
 
-  mkBoolOpt' = default: description: mkOption {
-    inherit default description;
-    type = types.bool;
-    example = true;
-  };
+  mkBoolOpt' =
+    default: description:
+    mkOption {
+      inherit default description;
+      type = types.bool;
+      example = true;
+    };
 
   normalizeFiles = files: mapAttrs configToPath (filterAttrs (_: nonEmptyValue) files);
   nonEmptyValue = x: nonEmpty x && (x ? value -> nonEmpty x.value);
   nonEmpty = x: x != { } && x != [ ];
 
-  configToPath = name: config:
-    if isStringLike config # Includes paths and packages
-    then config
-    else (getFormat name config).generate name config.value;
-  getFormat = name: config:
-    if config ? format && config.format != null
-    then config.format
-    else inferFormat name;
-  inferFormat = name:
+  configToPath =
+    name: config:
+    if
+      isStringLike config # Includes paths and packages
+    then
+      config
+    else
+      (getFormat name config).generate name config.value;
+  getFormat =
+    name: config: if config ? format && config.format != null then config.format else inferFormat name;
+  inferFormat =
+    name:
     let
       error = throw "nix-minecraft: Could not infer format from file '${name}'. Specify one using 'format'.";
       extension = builtins.match "[^.]*\\.(.+)" name;
     in
-    if extension != null && extension != [ ]
-    then formatExtensions.${head extension} or error
-    else error;
+    if extension != null && extension != [ ] then
+      formatExtensions.${head extension} or error
+    else
+      error;
 
   formatExtensions = with pkgs.formats; {
     "yml" = yaml { };
@@ -153,136 +166,161 @@ in
         See <option>services.minecraft-servers.servers.<name>.restart</option>.
         :::
       '';
-      type = types.attrsOf (types.submodule {
-        options = {
-          enable = mkEnableOpt ''
-            Whether to enable this server.
-            If set to <literal>false</literal>, does NOT delete any data in the data directory,
-            just does not generate the service file.
-          '';
-
-          autoStart = mkBoolOpt' true ''
-            Whether to start this server on boot.
-            If set to <literal>false</literal>, can still be started with
-            <literal>systemctl start minecraft-server-servername</literal>.
-            Requires the server to be enabled.
-          '';
-
-          openFirewall = mkOption {
-            type = types.bool;
-            default = cfg.openFirewall;
-            defaultText = "The value of <literal>services.minecraft-servers.openFirewall</literal>";
-            description = ''
-              Whether to open ports in the firewall for this server.
+      type = types.attrsOf (
+        types.submodule {
+          options = {
+            enable = mkEnableOpt ''
+              Whether to enable this server.
+              If set to <literal>false</literal>, does NOT delete any data in the data directory,
+              just does not generate the service file.
             '';
+
+            autoStart = mkBoolOpt' true ''
+              Whether to start this server on boot.
+              If set to <literal>false</literal>, can still be started with
+              <literal>systemctl start minecraft-server-servername</literal>.
+              Requires the server to be enabled.
+            '';
+
+            openFirewall = mkOption {
+              type = types.bool;
+              default = cfg.openFirewall;
+              defaultText = "The value of <literal>services.minecraft-servers.openFirewall</literal>";
+              description = ''
+                Whether to open ports in the firewall for this server.
+              '';
+            };
+
+            restart = mkOpt' types.str "always" ''
+              Value of systemd's <literal>Restart=</literal> service configuration option.
+              Due to the servers being started in tmux sockets, values other than
+              <literal>"no"</literal> and <literal>"always"</literal> may not work properly.
+              As a consequence of the <literal>"always"</literal> option, stopping the server
+              in-game with the <literal>stop</literal> command will cause the server to automatically restart.
+            '';
+
+            enableReload = mkOpt' types.bool false ''
+              Reload server when configuration changes (instead of restart).
+
+              This action re-links/copies the declared symlinks/files. You can
+              include additional actions (even in-game commands) by setting
+              <option>services.minecraft-servers.<name>.extraReload</option>.
+            '';
+
+            extraReload = mkOpt' types.lines "" ''
+              Extra commands to run when reloading the service. Only has an
+              effect if
+              <option>services.minecraft-servers.<name>.enableReload</option> is
+              true.
+            '';
+
+            whitelist = mkOption {
+              type =
+                let
+                  minecraftUUID =
+                    types.strMatching "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                    // {
+                      description = "Minecraft UUID";
+                    };
+                in
+                types.attrsOf minecraftUUID;
+              default = { };
+              description = ''
+                Whitelisted players, only has an effect when
+                enabled via <option>services.minecraft-servers.<name>.serverProperties</option>
+                by setting <literal>white-list</literal> to <literal>true</literal.
+
+                To use a non-declarative whitelist, enable the whitelist and don't fill in this value.
+                As long as it is empty, no whitelist file is generated.
+              '';
+              example = literalExpression ''
+                {
+                  username1 = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
+                  username2 = "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy";
+                }
+              '';
+            };
+
+            serverProperties = mkOption {
+              type =
+                with types;
+                attrsOf (oneOf [
+                  bool
+                  int
+                  str
+                ]);
+              default = { };
+              example = literalExpression ''
+                {
+                  server-port = 43000;
+                  difficulty = 3;
+                  gamemode = 1;
+                  max-players = 5;
+                  motd = "NixOS Minecraft server!";
+                  white-list = true;
+                  enable-rcon = true;
+                  "rcon.password" = "hunter2";
+                }
+              '';
+              description = ''
+                Minecraft server properties for the server.properties file of this server. See
+                <link xlink:href="https://minecraft.gamepedia.com/Server.properties#Java_Edition_3"/>
+                for documentation on these values.
+
+                To use a non-declarative server.properties, don't fill in this value.
+                As long as it is empty, no server.properties file is generated.
+              '';
+            };
+
+            package = mkOption {
+              description = "The Minecraft server package to use.";
+              type = types.package;
+              default = pkgs.minecraft-server;
+              defaultText = literalExpression "pkgs.minecraft-server";
+              example = "pkgs.minecraftServers.vanilla-1_18_2";
+            };
+
+            jvmOpts = mkOpt' (types.separatedString " ") "-Xmx2G -Xms1G" "JVM options for this server.";
+
+            path =
+              with types;
+              mkOpt' (listOf (either path str)) [ ] ''
+                Packages added to the Minecraft server's <literal>PATH</literal> environment variable.
+                Works as <option>systemd.services.<name>.path</option>.
+              '';
+
+            environment =
+              with types;
+              mkOpt'
+                (attrsOf (oneOf [
+                  null
+                  str
+                  path
+                  package
+                ]))
+                { }
+                ''
+                  Environment variables added to the Minecraft server's processes.
+                  Works as <option>systemd.services.<name>.environment</option>.
+                '';
+
+            symlinks =
+              with types;
+              mkOpt' (attrsOf (either path configType)) { } ''
+                Things to symlink into this server's data directory, in the form of
+                a nix package/derivation. Can be used to declaratively manage
+                arbitrary files in the server's data directory.
+              '';
+            files =
+              with types;
+              mkOpt' (attrsOf (either path configType)) { } ''
+                Things to copy into this server's data directory. Similar to
+                symlinks, but these are actual files. Useful for configuration
+                files that don't behave well when read-only.
+              '';
           };
-
-          restart = mkOpt' types.str "always" ''
-            Value of systemd's <literal>Restart=</literal> service configuration option.
-            Due to the servers being started in tmux sockets, values other than
-            <literal>"no"</literal> and <literal>"always"</literal> may not work properly.
-            As a consequence of the <literal>"always"</literal> option, stopping the server
-            in-game with the <literal>stop</literal> command will cause the server to automatically restart.
-          '';
-
-          enableReload = mkOpt' types.bool false ''
-            Reload server when configuration changes (instead of restart).
-
-            This action re-links/copies the declared symlinks/files. You can
-            include additional actions (even in-game commands) by setting
-            <option>services.minecraft-servers.<name>.extraReload</option>.
-          '';
-
-          extraReload = mkOpt' types.lines "" ''
-            Extra commands to run when reloading the service. Only has an
-            effect if
-            <option>services.minecraft-servers.<name>.enableReload</option> is
-            true.
-          '';
-
-          whitelist = mkOption {
-            type =
-              let
-                minecraftUUID = types.strMatching
-                  "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" // {
-                  description = "Minecraft UUID";
-                };
-              in
-              types.attrsOf minecraftUUID;
-            default = { };
-            description = ''
-              Whitelisted players, only has an effect when
-              enabled via <option>services.minecraft-servers.<name>.serverProperties</option>
-              by setting <literal>white-list</literal> to <literal>true</literal.
-
-              To use a non-declarative whitelist, enable the whitelist and don't fill in this value.
-              As long as it is empty, no whitelist file is generated.
-            '';
-            example = literalExpression ''
-              {
-                username1 = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
-                username2 = "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy";
-              }
-            '';
-          };
-
-          serverProperties = mkOption {
-            type = with types; attrsOf (oneOf [ bool int str ]);
-            default = { };
-            example = literalExpression ''
-              {
-                server-port = 43000;
-                difficulty = 3;
-                gamemode = 1;
-                max-players = 5;
-                motd = "NixOS Minecraft server!";
-                white-list = true;
-                enable-rcon = true;
-                "rcon.password" = "hunter2";
-              }
-            '';
-            description = ''
-              Minecraft server properties for the server.properties file of this server. See
-              <link xlink:href="https://minecraft.gamepedia.com/Server.properties#Java_Edition_3"/>
-              for documentation on these values.
-
-              To use a non-declarative server.properties, don't fill in this value.
-              As long as it is empty, no server.properties file is generated.
-            '';
-          };
-
-          package = mkOption {
-            description = "The Minecraft server package to use.";
-            type = types.package;
-            default = pkgs.minecraft-server;
-            defaultText = literalExpression "pkgs.minecraft-server";
-            example = "pkgs.minecraftServers.vanilla-1_18_2";
-          };
-
-          jvmOpts = mkOpt' (types.separatedString " ") "-Xmx2G -Xms1G" "JVM options for this server.";
-
-          path = with types; mkOpt' (listOf (either path str)) [ ] ''
-            Packages added to the Minecraft server's <literal>PATH</literal> environment variable.
-            Works as <option>systemd.services.<name>.path</option>.
-          '';
-
-          environment = with types; mkOpt' (attrsOf (oneOf [ null str path package ])) { } ''
-            Environment variables added to the Minecraft server's processes.
-            Works as <option>systemd.services.<name>.environment</option>.
-          '';
-
-          symlinks = with types; mkOpt' (attrsOf (either path configType)) { } ''
-            Things to symlink into this server's data directory, in the form of
-            a nix package/derivation. Can be used to declaratively manage
-            arbitrary files in the server's data directory.
-          '';
-          files = with types; mkOpt' (attrsOf (either path configType)) { } ''
-            Things to copy into this server's data directory. Similar to
-            symlinks, but these are actual files. Useful for configuration
-            files that don't behave well when read-only.
-          '';
-        };
-      });
+        }
+      );
     };
   };
 
@@ -306,21 +344,24 @@ in
       assertions = [
         {
           assertion = cfg.eula;
-          message = "You must agree to Mojangs EULA to run minecraft-servers."
+          message =
+            "You must agree to Mojangs EULA to run minecraft-servers."
             + " Read https://account.mojang.com/documents/minecraft_eula and"
             + " set `services.minecraft-servers.eula` to `true` if you agree.";
         }
         {
-          assertion = config.services.minecraft-server.enable -> cfg.dataDir != config.services.minecraft-server.dataDir;
-          message = "`services.minecraft-servers.dataDir` and `services.minecraft-server.dataDir` conflict."
+          assertion =
+            config.services.minecraft-server.enable -> cfg.dataDir != config.services.minecraft-server.dataDir;
+          message =
+            "`services.minecraft-servers.dataDir` and `services.minecraft-server.dataDir` conflict."
             + " Set one to use a different data directory.";
         }
         {
           assertion =
             let
-              serverPorts = mapAttrsToList
-                (name: conf: conf.serverProperties.server-port or 25565)
-                (filterAttrs (_: cfg: cfg.openFirewall) servers);
+              serverPorts = mapAttrsToList (name: conf: conf.serverProperties.server-port or 25565) (
+                filterAttrs (_: cfg: cfg.openFirewall) servers
+              );
 
               counts = map (port: count (x: x == port) serverPorts) (unique serverPorts);
             in
@@ -333,11 +374,13 @@ in
         let
           toOpen = filterAttrs (_: cfg: cfg.openFirewall) servers;
           # Minecraft and RCON
-          getTCPPorts = n: c:
-            [ c.serverProperties.server-port or 25565 ] ++
-            (optional (c.serverProperties.enable-rcon or false) (c.serverProperties."rcon.port" or 25575));
+          getTCPPorts =
+            n: c:
+            [ c.serverProperties.server-port or 25565 ]
+            ++ (optional (c.serverProperties.enable-rcon or false) (c.serverProperties."rcon.port" or 25575));
           # Query
-          getUDPPorts = n: c:
+          getUDPPorts =
+            n: c:
             optional (c.serverProperties.enable-query or false) (c.serverProperties."query.port" or 25565);
         in
         {
@@ -345,176 +388,184 @@ in
           allowedTCPPorts = flatten (mapAttrsToList getTCPPorts toOpen);
         };
 
-      systemd.tmpfiles.rules = mapAttrsToList
-        (name: _:
-          "d '${cfg.dataDir}/${name}' 0770 ${cfg.user} ${cfg.group} - -"
-        )
-        servers;
+      systemd.tmpfiles.rules = mapAttrsToList (
+        name: _: "d '${cfg.dataDir}/${name}' 0770 ${cfg.user} ${cfg.group} - -"
+      ) servers;
 
-      systemd.services = mapAttrs'
-        (name: conf:
-          let
-            tmux = "${getBin pkgs.tmux}/bin/tmux";
-            tmuxSock = "${cfg.runDir}/${name}.sock";
+      systemd.services = mapAttrs' (
+        name: conf:
+        let
+          tmux = "${getBin pkgs.tmux}/bin/tmux";
+          tmuxSock = "${cfg.runDir}/${name}.sock";
 
-            symlinks = normalizeFiles ({
-              "eula.txt".value = { eula = true; };
-              "eula.txt".format = pkgs.formats.keyValue { };
-            } // conf.symlinks);
-            files = normalizeFiles ({
-              "whitelist.json".value = mapAttrsToList (n: v: { name = n; uuid = v; }) conf.whitelist;
-              "server.properties".value = conf.serverProperties;
-            } // conf.files);
-
-            startScript = pkgs.writeScript "minecraft-start-${name}" ''
-              #!${pkgs.runtimeShell}
-              ${tmux} -S ${tmuxSock} new -d ${getExe conf.package} ${conf.jvmOpts}
-
-              # HACK: PrivateUsers makes every user besides root/minecraft `nobody`, so this restores old tmux behavior
-              # See https://github.com/Infinidoge/nix-minecraft/issues/5
-              ${tmux} -S ${tmuxSock} server-access -aw nobody
-            '';
-
-            stopScript = pkgs.writeScript "minecraft-stop-${name}" ''
-              #!${pkgs.runtimeShell}
-
-              function server_running {
-                ${tmux} -S ${tmuxSock} has-session
-              }
-
-              if ! server_running ; then
-                exit 0
-              fi
-
-              ${tmux} -S ${tmuxSock} send-keys stop Enter
-
-              while server_running ; do
-                sleep 0.25
-              done
-            '';
-          in
-          {
-            name = "minecraft-server-${name}";
-            value = rec {
-              description = "Minecraft Server ${name}";
-              wantedBy = mkIf conf.autoStart [ "multi-user.target" ];
-              after = [ "network.target" ];
-
-              enable = conf.enable;
-
-              startLimitIntervalSec = 120;
-              startLimitBurst = 5;
-
-              serviceConfig = {
-                ExecStart = "${startScript}";
-                ExecStop = "${stopScript}";
-                Restart = conf.restart;
-                WorkingDirectory = "${cfg.dataDir}/${name}";
-                User = cfg.user;
-                Group = cfg.group;
-                Type = "forking";
-                GuessMainPID = true;
-                RuntimeDirectory = "minecraft";
-                RuntimeDirectoryPreserve = "yes";
-                EnvironmentFile = mkIf (cfg.environmentFile != null)
-                  (toString cfg.environmentFile);
-
-                # Hardening
-                CapabilityBoundingSet = [ "" ];
-                DeviceAllow = [ "" ];
-                LockPersonality = true;
-                PrivateDevices = true;
-                PrivateTmp = true;
-                PrivateUsers = true;
-                ProtectClock = true;
-                ProtectControlGroups = true;
-                ProtectHome = true;
-                ProtectHostname = true;
-                ProtectKernelLogs = true;
-                ProtectKernelModules = true;
-                ProtectKernelTunables = true;
-                ProtectProc = "invisible";
-                RestrictNamespaces = true;
-                RestrictRealtime = true;
-                RestrictSUIDSGID = true;
-                SystemCallArchitectures = "native";
-                UMask = "0007";
+          symlinks = normalizeFiles (
+            {
+              "eula.txt".value = {
+                eula = true;
               };
-              restartIfChanged = !conf.enableReload;
-              reloadIfChanged = conf.enableReload;
+              "eula.txt".format = pkgs.formats.keyValue { };
+            }
+            // conf.symlinks
+          );
+          files = normalizeFiles (
+            {
+              "whitelist.json".value = mapAttrsToList (n: v: {
+                name = n;
+                uuid = v;
+              }) conf.whitelist;
+              "server.properties".value = conf.serverProperties;
+            }
+            // conf.files
+          );
 
-              inherit (conf) path environment;
+          startScript = pkgs.writeScript "minecraft-start-${name}" ''
+            #!${pkgs.runtimeShell}
+            ${tmux} -S ${tmuxSock} new -d ${getExe conf.package} ${conf.jvmOpts}
 
-              reload = ''
+            # HACK: PrivateUsers makes every user besides root/minecraft `nobody`, so this restores old tmux behavior
+            # See https://github.com/Infinidoge/nix-minecraft/issues/5
+            ${tmux} -S ${tmuxSock} server-access -aw nobody
+          '';
+
+          stopScript = pkgs.writeScript "minecraft-stop-${name}" ''
+            #!${pkgs.runtimeShell}
+
+            function server_running {
+              ${tmux} -S ${tmuxSock} has-session
+            }
+
+            if ! server_running ; then
+              exit 0
+            fi
+
+            ${tmux} -S ${tmuxSock} send-keys stop Enter
+
+            while server_running ; do
+              sleep 0.25
+            done
+          '';
+        in
+        {
+          name = "minecraft-server-${name}";
+          value = rec {
+            description = "Minecraft Server ${name}";
+            wantedBy = mkIf conf.autoStart [ "multi-user.target" ];
+            after = [ "network.target" ];
+
+            enable = conf.enable;
+
+            startLimitIntervalSec = 120;
+            startLimitBurst = 5;
+
+            serviceConfig = {
+              ExecStart = "${startScript}";
+              ExecStop = "${stopScript}";
+              Restart = conf.restart;
+              WorkingDirectory = "${cfg.dataDir}/${name}";
+              User = cfg.user;
+              Group = cfg.group;
+              Type = "forking";
+              GuessMainPID = true;
+              RuntimeDirectory = "minecraft";
+              RuntimeDirectoryPreserve = "yes";
+              EnvironmentFile = mkIf (cfg.environmentFile != null) (toString cfg.environmentFile);
+
+              # Hardening
+              CapabilityBoundingSet = [ "" ];
+              DeviceAllow = [ "" ];
+              LockPersonality = true;
+              PrivateDevices = true;
+              PrivateTmp = true;
+              PrivateUsers = true;
+              ProtectClock = true;
+              ProtectControlGroups = true;
+              ProtectHome = true;
+              ProtectHostname = true;
+              ProtectKernelLogs = true;
+              ProtectKernelModules = true;
+              ProtectKernelTunables = true;
+              ProtectProc = "invisible";
+              RestrictNamespaces = true;
+              RestrictRealtime = true;
+              RestrictSUIDSGID = true;
+              SystemCallArchitectures = "native";
+              UMask = "0007";
+            };
+            restartIfChanged = !conf.enableReload;
+            reloadIfChanged = conf.enableReload;
+
+            inherit (conf) path environment;
+
+            reload =
+              ''
                 ${postStop}
                 ${preStart}
-              '' + conf.extraReload;
+              ''
+              + conf.extraReload;
 
-              preStart =
-                let
-                  mkSymlinks = pkgs.writeShellScript "minecraft-server-${name}-symlinks"
-                    (concatStringsSep "\n"
-                      (mapAttrsToList
-                        (n: v: ''
-                          if [[ -L "${n}" ]]; then
-                            unlink "${n}"
-                          elif [[ -e "${n}" ]]; then
-                            echo "${n} already exists, moving"
-                            mv "${n}" "${n}.bak"
-                          fi
-                          mkdir -p "$(dirname "${n}")"
-                          ln -sf "${v}" "${n}"
-                        '')
-                        symlinks));
+            preStart =
+              let
+                mkSymlinks = pkgs.writeShellScript "minecraft-server-${name}-symlinks" (
+                  concatStringsSep "\n" (
+                    mapAttrsToList (n: v: ''
+                      if [[ -L "${n}" ]]; then
+                        unlink "${n}"
+                      elif [[ -e "${n}" ]]; then
+                        echo "${n} already exists, moving"
+                        mv "${n}" "${n}.bak"
+                      fi
+                      mkdir -p "$(dirname "${n}")"
+                      ln -sf "${v}" "${n}"
+                    '') symlinks
+                  )
+                );
 
-                  mkFiles = pkgs.writeShellScript "minecraft-server-${name}-files"
-                    (concatStringsSep "\n"
-                      (mapAttrsToList
-                        (n: v: ''
-                          if [[ -L "${n}" ]]; then
-                            unlink "${n}"
-                          elif ${pkgs.diffutils}/bin/cmp -s "${n}" "${v}"; then
-                            rm "${n}"
-                          elif [[ -e "${n}" ]]; then
-                            echo "${n} already exists, moving"
-                            mv "${n}" "${n}.bak"
-                          fi
-                          mkdir -p $(dirname "${n}")
-                          ${pkgs.gawk}/bin/awk '{
-                            for(varname in ENVIRON)
-                              gsub("@"varname"@", ENVIRON[varname])
-                            print
-                          }' "${v}" > "${n}"
-                        '')
-                        files));
-                in
-                ''
-                  ${mkSymlinks}
-                  ${mkFiles}
-                '';
-
-              postStart = ''
-                ${pkgs.coreutils}/bin/chmod 660 ${tmuxSock}
+                mkFiles = pkgs.writeShellScript "minecraft-server-${name}-files" (
+                  concatStringsSep "\n" (
+                    mapAttrsToList (n: v: ''
+                      if [[ -L "${n}" ]]; then
+                        unlink "${n}"
+                      elif ${pkgs.diffutils}/bin/cmp -s "${n}" "${v}"; then
+                        rm "${n}"
+                      elif [[ -e "${n}" ]]; then
+                        echo "${n} already exists, moving"
+                        mv "${n}" "${n}.bak"
+                      fi
+                      mkdir -p $(dirname "${n}")
+                      ${pkgs.gawk}/bin/awk '{
+                        for(varname in ENVIRON)
+                          gsub("@"varname"@", ENVIRON[varname])
+                        print
+                      }' "${v}" > "${n}"
+                    '') files
+                  )
+                );
+              in
+              ''
+                ${mkSymlinks}
+                ${mkFiles}
               '';
 
-              postStop =
-                let
-                  rmSymlinks = pkgs.writeShellScript "minecraft-server-${name}-rm-symlinks"
-                    (concatStringsSep "\n"
-                      (mapAttrsToList (n: v: "unlink \"${n}\"") symlinks)
-                    );
-                  rmFiles = pkgs.writeShellScript "minecraft-server-${name}-rm-files"
-                    (concatStringsSep "\n"
-                      (mapAttrsToList (n: v: "rm -f \"${n}\"") files)
-                    );
-                in
-                ''
-                  ${rmSymlinks}
-                  ${rmFiles}
-                '';
-            };
-          })
-        servers;
+            postStart = ''
+              ${pkgs.coreutils}/bin/chmod 660 ${tmuxSock}
+            '';
+
+            postStop =
+              let
+                rmSymlinks = pkgs.writeShellScript "minecraft-server-${name}-rm-symlinks" (
+                  concatStringsSep "\n" (mapAttrsToList (n: v: "unlink \"${n}\"") symlinks)
+                );
+                rmFiles = pkgs.writeShellScript "minecraft-server-${name}-rm-files" (
+                  concatStringsSep "\n" (mapAttrsToList (n: v: "rm -f \"${n}\"") files)
+                );
+              in
+              ''
+                ${rmSymlinks}
+                ${rmFiles}
+              '';
+          };
+        }
+      ) servers;
     }
   );
 }
