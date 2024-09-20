@@ -455,7 +455,7 @@ in
             enable = conf.enable;
 
             startLimitIntervalSec = 120;
-            startLimitBurst = 5;
+            startLimitBurst = 20;
 
             serviceConfig = {
               ExecStart = "${startScript}";
