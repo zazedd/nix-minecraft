@@ -17,8 +17,6 @@ let
     ;
   versions = lib.importJSON ./lock.json;
 
-  # Remove -build... suffix
-  stripBuild = v: builtins.head (builtins.match "(.*)-build.*" v);
   # Sort by attribute 'attr' using 'f' function
   sortBy = attr: f: builtins.sort (a: b: f a.${attr} b.${attr});
 
@@ -53,7 +51,7 @@ in
 lib.recurseIntoAttrs (
   builtins.listToAttrs (
     (map (x: nameValuePair (escapeVersion x.name) x) (flatten packages))
-    ++ (map (x: nameValuePair (escapeVersion (stripBuild x.name)) x) latestBuilds)
+    ++ (map (x: nameValuePair (escapeVersion x.name) x) latestBuilds)
     ++ [ (nameValuePair "purpur" (last latestBuilds)) ]
   )
 )
