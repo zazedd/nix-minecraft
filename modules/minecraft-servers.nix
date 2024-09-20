@@ -422,7 +422,7 @@ in
             #!${pkgs.runtimeShell}
             echo "IM STARTING"
             echo "${getExe conf.package}"
-            ${tmux} -S ${tmuxSock} new -d ${getExe conf.package} ${conf.jvmOpts} &> /run/minecraft/tmuxlog.log
+            ${tmux} -S ${tmuxSock} new -d '${getExe conf.package} &> /run/minecraft/tmuxlog.log' ${conf.jvmOpts} 
             echo "ALL GOOD"
 
             # HACK: PrivateUsers makes every user besides root/minecraft `nobody`, so this restores old tmux behavior
