@@ -420,7 +420,9 @@ in
 
           startScript = pkgs.writeScript "minecraft-start-${name}" ''
             #!${pkgs.runtimeShell}
+            echo "IM STARTING"
             ${tmux} -S ${tmuxSock} new -d ${getExe conf.package} ${conf.jvmOpts} &> /home/zazed/tmuxlog.log
+            echo "ALL GOOD"
 
             # HACK: PrivateUsers makes every user besides root/minecraft `nobody`, so this restores old tmux behavior
             # See https://github.com/Infinidoge/nix-minecraft/issues/5
