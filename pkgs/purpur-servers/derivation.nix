@@ -2,21 +2,19 @@
   lib,
   stdenv,
   fetchurl,
-  nixosTests,
-  jre_headless,
+  jre,
+  version,
+  url,
+  sha256,
   makeWrapper,
+  minecraft-server,
 }:
 
-stdenv.mkDerivation rec {
+stdenv.mkDerivation {
   pname = "purpur";
-  version = "1.21.1r2308";
+  inherit version;
 
-  src = fetchurl {
-    url = "https://api.purpurmc.org/v2/purpur/${
-      builtins.replaceStrings [ "r" ] [ "/" ] version
-    }/download";
-    sha256 = "";
-  };
+  src = fetchurl { inherit url sha256; };
 
   nativeBuildInputs = [ makeWrapper ];
 
@@ -26,16 +24,16 @@ stdenv.mkDerivation rec {
     mkdir -p $out/bin $out/lib/minecraft
     cp -v $src $out/lib/minecraft/server.jar
 
-    makeWrapper ${jre_headless}/bin/java $out/bin/minecraft-server \
+    makeWrapper ${jre}/bin/java $out/bin/minecraft-server \
       --add-flags "-jar $out/lib/minecraft/server.jar nogui"
   '';
 
   dontUnpack = true;
 
   passthru = {
-    tests = {
-      inherit (nixosTests) minecraft-server;
-    };
+    # If you plan on running paper without internet, be sure to link this jar
+    # to `cache/mojang_{version}.jar`.
+    vanillaJar = "${minecraft-server}/lib/minecraft/server.jar";
   };
 
   meta = with lib; {

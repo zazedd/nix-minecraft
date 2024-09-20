@@ -1,0 +1,40 @@
+{
+  "1.20.6": {
+    "2232": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.20.6/2232/download",
+      "sha256": "17660534390f4733b8d555882b762283e28007810a1abd2db3f423f2d7a209aa"
+    },
+    "2233": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.20.6/2233/download",
+      "sha256": "7d5410a978360a46faa76a288b1eab353135d8db16e40329a154402ec1b12d91"
+    }
+  },
+  "1.21": {
+    "2282": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.21/2282/download",
+      "sha256": "07d15ff4ab5e2ba2352407b5d3f3937e4f1bacca80da6f3710c06371a45b6ec6"
+    },
+    "2283": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.21/2283/download",
+      "sha256": "878dab0d25928ac8f56c2fa3242a0badab21cf164d43e1524a8212d0fcf10061"
+    },
+    "2284": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.21/2284/download",
+      "sha256": "12885008efdc4777eba85e4ec3e35f6b916ccbbb168a4453506b4596e028abcb"
+    }
+  },
+  "1.21.1": {
+    "2306": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.21.1/2306/download",
+      "sha256": "14ab99ae0b2aa9ba287e8648e11e3e0efa5b0cd71c155d9d1348f15053c8f066"
+    },
+    "2307": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.21.1/2307/download",
+      "sha256": "2c4cf272dc13ef78bf3cc1a03f2d3b31a45cdfcea0fb564c24440179882b8def"
+    },
+    "2308": {
+      "url": "https://api.purpurmc.org/v2/purpur/1.21.1/2308/download",
+      "sha256": "5f514126e51a8c051beeadcc60e4be00929e37533082509853d12370be9ddec9"
+    }
+  }
+}
