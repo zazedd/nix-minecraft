@@ -427,7 +427,7 @@ in
 
             # HACK: PrivateUsers makes every user besides root/minecraft `nobody`, so this restores old tmux behavior
             # See https://github.com/Infinidoge/nix-minecraft/issues/5
-            ${tmux} -S ${tmuxSock} server-access -aw nobody
+            # ${tmux} -S ${tmuxSock} server-access -aw nobody
           '';
 
           stopScript = pkgs.writeScript "minecraft-stop-${name}" ''
