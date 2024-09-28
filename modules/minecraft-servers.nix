@@ -553,7 +553,7 @@ in
               '';
 
             postStart = ''
-              ${pkgs.coreutils}/bin/chmod 660 ${tmuxSock}
+              # ${pkgs.coreutils}/bin/chmod 660 ${tmuxSock}
             '';
 
             postStop =
