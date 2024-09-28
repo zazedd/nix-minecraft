@@ -443,7 +443,7 @@ in
               exit 0
             fi
 
-            ${tmux} -S ${tmuxSock} send-keys stop Enter
+            # ${tmux} -S ${tmuxSock} send-keys stop Enter
             systemctl stop minecraft-server-${name}
 
             while server_running ; do
