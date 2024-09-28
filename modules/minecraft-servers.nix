@@ -422,7 +422,8 @@ in
             #!${pkgs.runtimeShell}
             echo "IM STARTING"
             echo "${getExe conf.package}"
-            ${tmux} -S ${tmuxSock} new -d '${getExe conf.package} &> /run/minecraft/tmuxlog.log' ${conf.jvmOpts} 
+            # ${tmux} -S ${tmuxSock} new -d '${getExe conf.package} &> /run/minecraft/tmuxlog.log' ${conf.jvmOpts}
+            ${getExe conf.package} ${conf.jvmOpts}
             echo "ALL GOOD"
 
             # HACK: PrivateUsers makes every user besides root/minecraft `nobody`, so this restores old tmux behavior
@@ -434,7 +435,8 @@ in
             #!${pkgs.runtimeShell}
 
             function server_running {
-              ${tmux} -S ${tmuxSock} has-session
+              # ${tmux} -S ${tmuxSock} has-session
+              systemctl status minecraft-server-${name}
             }
 
             if ! server_running ; then
@@ -442,6 +444,7 @@ in
             fi
 
             ${tmux} -S ${tmuxSock} send-keys stop Enter
+            systemctl stop minecraft-server-${name}
 
             while server_running ; do
               sleep 0.25

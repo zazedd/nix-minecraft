@@ -1,14 +1,16 @@
 {
   lib,
-  stdenv,
   fetchurl,
   jre,
   version,
   url,
+  pkgs;
   sha256,
   makeWrapper,
   minecraft-server,
 }:
+
+with pkgs;
 
 stdenv.mkDerivation {
   pname = "purpur";
